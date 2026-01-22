@@ -4,13 +4,62 @@ services:
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: postgres
     ports:
       - "5432:5432"
     volumes:
-      - ./BaseDatos.sql:/docker-entrypoint-initdb.d/BaseDatos.sql:ro
+      - ./BaseDatos.sql:/docker-entrypoint-initdb.d/001-BaseDatos.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
 
   rabbitmq:
     image: rabbitmq:4-management
     ports:
       - "5672:5672"
       - "15672:15672"
+    healthcheck:
+      test: ["CMD-SHELL", "rabbitmq-diagnostics -q ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  customer-service:
+    build:
+      context: ./services/customer-service
+    ports:
+      - "8081:8080"
+    environment:
+      DB_URL: jdbc:postgresql://postgres:5432/customer_db
+      DB_USER: customer_app
+      DB_PASS: customer_pass
+      RABBIT_HOST: rabbitmq
+      RABBIT_PORT: 5672
+      RABBIT_USER: guest
+      RABBIT_PASS: guest
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+
+  account-service:
+    build:
+      context: ./services/account-service
+    ports:
+      - "8082:8080"
+    environment:
+      DB_URL: jdbc:postgresql://postgres:5432/account_db
+      DB_USER: account_app
+      DB_PASS: account_pass
+      RABBIT_HOST: rabbitmq
+      RABBIT_PORT: 5672
+      RABBIT_USER: guest
+      RABBIT_PASS: guest
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
