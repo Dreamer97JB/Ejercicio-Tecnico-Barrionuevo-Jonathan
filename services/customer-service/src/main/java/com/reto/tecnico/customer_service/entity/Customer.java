@@ -18,32 +18,11 @@ import lombok.Setter;
 @Getter
 @Setter
 @NoArgsConstructor
-public class Customer {
+public class Customer extends Person {
 
     @Id
     @Column(name = "cliente_id", nullable = false)
     private UUID clienteId;
-
-    @Column(name = "name", nullable = false)
-    private String name;
-
-    @Column(name = "gender", nullable = false)
-    private String gender;
-
-    @Column(name = "age", nullable = false)
-    private int age;
-
-    @Column(name = "identificacion", nullable = false, unique = true)
-    private String identificacion;
-
-    @Column(name = "tipo_identificacion")
-    private String tipoIdentificacion;
-
-    @Column(name = "address", nullable = false)
-    private String address;
-
-    @Column(name = "phone", nullable = false)
-    private String phone;
 
     @Column(name = "password_hash", nullable = false)
     private String passwordHash;
