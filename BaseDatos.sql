@@ -130,6 +130,17 @@ CREATE TABLE IF NOT EXISTS public.movements (
     FOREIGN KEY (account_number) REFERENCES public.accounts(account_number)
 );
 
+ALTER TABLE public.movements
+  ADD COLUMN IF NOT EXISTS status VARCHAR(20) NOT NULL DEFAULT 'ACTIVE';
+ALTER TABLE public.movements
+  ADD COLUMN IF NOT EXISTS voided_at TIMESTAMPTZ NULL;
+ALTER TABLE public.movements
+  ADD COLUMN IF NOT EXISTS void_reason VARCHAR(255) NULL;
+ALTER TABLE public.movements
+  ADD COLUMN IF NOT EXISTS reversal_movement_id UUID NULL;
+ALTER TABLE public.movements
+  ADD COLUMN IF NOT EXISTS replacement_movement_id UUID NULL;
+
 CREATE TABLE IF NOT EXISTS public.processed_events (
   event_id       UUID PRIMARY KEY,
   processed_at   TIMESTAMPTZ NOT NULL DEFAULT now()

@@ -191,3 +191,4 @@ Recomendación: usar Testcontainers para Postgres + RabbitMQ si es viable, si no
 - errors: map missing routes/resources to 404 to avoid 500 on /actuator/mappings or swagger resources.
 - customer-service: introduced Person mapped superclass and refactored Customer to extend it.
 - account-service: added movement traceability (status/void/rectify), reconciliation logic, and CRUD endpoints for /movimientos.
+- database: added additive ALTER TABLE patch for movements traceability columns in BaseDatos.sql.
