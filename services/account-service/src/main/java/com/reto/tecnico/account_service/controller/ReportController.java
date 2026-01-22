@@ -2,6 +2,7 @@ package com.reto.tecnico.account_service.controller;
 
 import com.reto.tecnico.account_service.dto.ReportResponse;
 import com.reto.tecnico.account_service.service.ReportService;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import java.time.LocalDate;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
@@ -14,6 +15,7 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 @RequestMapping("/reportes")
 @RequiredArgsConstructor
+@Tag(name = "Report")
 public class ReportController {
 
     private final ReportService reportService;

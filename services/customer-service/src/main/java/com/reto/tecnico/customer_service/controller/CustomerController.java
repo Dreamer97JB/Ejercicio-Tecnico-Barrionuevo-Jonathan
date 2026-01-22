@@ -4,6 +4,7 @@ import com.reto.tecnico.customer_service.dto.CreateCustomerRequest;
 import com.reto.tecnico.customer_service.dto.CustomerResponse;
 import com.reto.tecnico.customer_service.dto.UpdateCustomerRequest;
 import com.reto.tecnico.customer_service.service.CustomerService;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
@@ -22,6 +23,7 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 @RequestMapping("/clientes")
 @RequiredArgsConstructor
+@Tag(name = "Customer")
 public class CustomerController {
 
     private final CustomerService customerService;

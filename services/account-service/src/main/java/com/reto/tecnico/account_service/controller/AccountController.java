@@ -4,6 +4,7 @@ import com.reto.tecnico.account_service.dto.AccountResponse;
 import com.reto.tecnico.account_service.dto.CreateAccountRequest;
 import com.reto.tecnico.account_service.dto.UpdateAccountRequest;
 import com.reto.tecnico.account_service.service.AccountService;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import java.util.List;
 import java.util.UUID;
@@ -23,6 +24,7 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 @RequestMapping("/cuentas")
 @RequiredArgsConstructor
+@Tag(name = "Account")
 public class AccountController {
 
     private final AccountService accountService;
