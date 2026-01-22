@@ -1,8 +1,10 @@
 package com.reto.tecnico.account_service;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -10,9 +12,12 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.reto.tecnico.account_service.config.RabbitProperties;
 import com.reto.tecnico.account_service.dto.CreateMovementRequest;
+import com.reto.tecnico.account_service.dto.UpdateMovementRequest;
+import com.reto.tecnico.account_service.dto.VoidMovementRequest;
 import com.reto.tecnico.account_service.entity.Account;
 import com.reto.tecnico.account_service.entity.ClientSnapshot;
 import com.reto.tecnico.account_service.entity.Movement;
+import com.reto.tecnico.account_service.entity.MovementStatus;
 import com.reto.tecnico.account_service.entity.MovementType;
 import com.reto.tecnico.account_service.messaging.CustomerEvent;
 import com.reto.tecnico.account_service.messaging.CustomerEventPayload;
@@ -235,6 +240,116 @@ class AccountServiceApplicationTests {
                 .andExpect(jsonPath("$.accounts[0].movements.length()").value(1));
     }
 
+    @Test
+    void listMovementsAndBalances() throws Exception {
+        UUID clienteId = UUID.randomUUID();
+        createSnapshot(clienteId, "ID-600");
+        createAccount(clienteId, "ACC-600", new BigDecimal("100.00"));
+
+        createMovement("ACC-600", MovementType.DEPOSITO, new BigDecimal("50.00"));
+        createMovement("ACC-600", MovementType.RETIRO, new BigDecimal("30.00"));
+
+        Account account = accountRepository.findById("ACC-600").orElseThrow();
+        assertThat(account.getCurrentBalance()).isEqualByComparingTo("120.00");
+
+        mockMvc.perform(get("/movimientos")
+                        .param("accountNumber", "ACC-600"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(2))
+                .andExpect(jsonPath("$[0].status").value("ACTIVE"));
+    }
+
+    @Test
+    void voidDepositCreatesReversalAndReconcilesBalances() throws Exception {
+        UUID clienteId = UUID.randomUUID();
+        createSnapshot(clienteId, "ID-700");
+        createAccount(clienteId, "ACC-700", new BigDecimal("0.00"));
+
+        UUID depositId = createMovement("ACC-700", MovementType.DEPOSITO, new BigDecimal("50.00"));
+
+        VoidMovementRequest request = new VoidMovementRequest("Customer request");
+        MvcResult result = mockMvc.perform(delete("/movimientos/{movementId}", depositId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isOk())
+                .andReturn();
+
+        JsonNode response = objectMapper.readTree(result.getResponse().getContentAsString());
+        UUID reversalId = UUID.fromString(response.get("reversalMovementId").asText());
+
+        Movement original = movementRepository.findById(depositId).orElseThrow();
+        assertThat(original.getStatus()).isEqualTo(MovementStatus.VOIDED);
+        assertThat(original.getReversalMovementId()).isEqualTo(reversalId);
+
+        Movement reversal = movementRepository.findById(reversalId).orElseThrow();
+        assertThat(reversal.getStatus()).isEqualTo(MovementStatus.ACTIVE);
+        assertThat(reversal.getMovementType()).isEqualTo(MovementType.RETIRO);
+
+        Account account = accountRepository.findById("ACC-700").orElseThrow();
+        assertThat(account.getCurrentBalance()).isEqualByComparingTo("0.00");
+    }
+
+    @Test
+    void rectifyWithdrawalCreatesReversalAndReplacement() throws Exception {
+        UUID clienteId = UUID.randomUUID();
+        createSnapshot(clienteId, "ID-800");
+        createAccount(clienteId, "ACC-800", new BigDecimal("100.00"));
+
+        UUID withdrawalId = createMovement("ACC-800", MovementType.RETIRO, new BigDecimal("30.00"));
+
+        UpdateMovementRequest request = new UpdateMovementRequest(
+                MovementType.RETIRO,
+                new BigDecimal("50.00"),
+                null
+        );
+
+        MvcResult result = mockMvc.perform(put("/movimientos/{movementId}", withdrawalId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isOk())
+                .andReturn();
+
+        JsonNode response = objectMapper.readTree(result.getResponse().getContentAsString());
+        UUID reversalId = UUID.fromString(response.get("reversalMovementId").asText());
+        UUID replacementId = UUID.fromString(response.get("replacementMovementId").asText());
+
+        Movement original = movementRepository.findById(withdrawalId).orElseThrow();
+        assertThat(original.getStatus()).isEqualTo(MovementStatus.SUPERSEDED);
+        assertThat(original.getReplacementMovementId()).isEqualTo(replacementId);
+
+        Movement reversal = movementRepository.findById(reversalId).orElseThrow();
+        assertThat(reversal.getStatus()).isEqualTo(MovementStatus.ACTIVE);
+        assertThat(reversal.getMovementType()).isEqualTo(MovementType.DEPOSITO);
+
+        Movement replacement = movementRepository.findById(replacementId).orElseThrow();
+        assertThat(replacement.getStatus()).isEqualTo(MovementStatus.ACTIVE);
+        assertThat(replacement.getAmount()).isEqualByComparingTo("50.00");
+
+        Account account = accountRepository.findById("ACC-800").orElseThrow();
+        assertThat(account.getCurrentBalance()).isEqualByComparingTo("50.00");
+    }
+
+    @Test
+    void voidingDepositThatBreaksBalanceReturns422AndRollsBack() throws Exception {
+        UUID clienteId = UUID.randomUUID();
+        createSnapshot(clienteId, "ID-900");
+        createAccount(clienteId, "ACC-900", new BigDecimal("0.00"));
+
+        UUID depositId = createMovement("ACC-900", MovementType.DEPOSITO, new BigDecimal("50.00"));
+        createMovement("ACC-900", MovementType.RETIRO, new BigDecimal("30.00"));
+
+        mockMvc.perform(delete("/movimientos/{movementId}", depositId))
+                .andExpect(status().isUnprocessableEntity());
+
+        Movement original = movementRepository.findById(depositId).orElseThrow();
+        assertThat(original.getStatus()).isEqualTo(MovementStatus.ACTIVE);
+        assertThat(original.getReversalMovementId()).isNull();
+
+        Account account = accountRepository.findById("ACC-900").orElseThrow();
+        assertThat(account.getCurrentBalance()).isEqualByComparingTo("20.00");
+        assertThat(movementRepository.count()).isEqualTo(2);
+    }
+
     private ClientSnapshot createSnapshot(UUID clienteId, String identificacion) {
         ClientSnapshot snapshot = new ClientSnapshot();
         snapshot.setClienteId(clienteId);
@@ -254,5 +369,16 @@ class AccountServiceApplicationTests {
         account.setActive(true);
         account.setClienteId(clienteId);
         return accountRepository.save(account);
+    }
+
+    private UUID createMovement(String accountNumber, MovementType type, BigDecimal amount) throws Exception {
+        CreateMovementRequest request = new CreateMovementRequest(accountNumber, type, amount);
+        MvcResult result = mockMvc.perform(post("/movimientos")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isCreated())
+                .andReturn();
+        JsonNode response = objectMapper.readTree(result.getResponse().getContentAsString());
+        return UUID.fromString(response.get("movementId").asText());
     }
 }

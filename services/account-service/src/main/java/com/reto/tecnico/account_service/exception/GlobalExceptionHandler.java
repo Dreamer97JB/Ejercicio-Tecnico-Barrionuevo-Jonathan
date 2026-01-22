@@ -40,6 +40,11 @@ public class GlobalExceptionHandler {
         return buildError(ex.getMessage(), HttpStatus.CONFLICT, request.getRequestURI());
     }
 
+    @ExceptionHandler(UnprocessableEntityException.class)
+    public ResponseEntity<ApiError> handleUnprocessable(UnprocessableEntityException ex, HttpServletRequest request) {
+        return buildError(ex.getMessage(), HttpStatus.UNPROCESSABLE_ENTITY, request.getRequestURI());
+    }
+
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public ResponseEntity<ApiError> handleValidation(MethodArgumentNotValidException ex, HttpServletRequest request) {
         String message = ex.getBindingResult().getFieldErrors().stream()

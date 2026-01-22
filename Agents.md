@@ -190,3 +190,4 @@ Recomendación: usar Testcontainers para Postgres + RabbitMQ si es viable, si no
 - openapi: added springdoc-openapi UI/docs config and controller tags for both services.
 - errors: map missing routes/resources to 404 to avoid 500 on /actuator/mappings or swagger resources.
 - customer-service: introduced Person mapped superclass and refactored Customer to extend it.
+- account-service: added movement traceability (status/void/rectify), reconciliation logic, and CRUD endpoints for /movimientos.

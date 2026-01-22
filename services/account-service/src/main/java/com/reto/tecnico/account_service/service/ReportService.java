@@ -6,6 +6,7 @@ import com.reto.tecnico.account_service.dto.ReportResponse;
 import com.reto.tecnico.account_service.entity.Account;
 import com.reto.tecnico.account_service.entity.ClientSnapshot;
 import com.reto.tecnico.account_service.entity.Movement;
+import com.reto.tecnico.account_service.entity.MovementStatus;
 import com.reto.tecnico.account_service.exception.NotFoundException;
 import com.reto.tecnico.account_service.repository.AccountRepository;
 import com.reto.tecnico.account_service.repository.ClientSnapshotRepository;
@@ -75,7 +76,12 @@ public class ReportService {
 
     private List<MovementResponse> toMovementResponses(String accountNumber, OffsetDateTime start, OffsetDateTime end) {
         List<Movement> movements = movementRepository
-                .findByAccountNumberAndMovementDateBetweenOrderByMovementDateAsc(accountNumber, start, end);
+                .findByAccountNumberAndStatusAndMovementDateBetweenOrderByMovementDateAscCreatedAtAscMovementIdAsc(
+                        accountNumber,
+                        MovementStatus.ACTIVE,
+                        start,
+                        end
+                );
         return movements.stream()
                 .map(this::toMovementResponse)
                 .toList();
@@ -88,7 +94,12 @@ public class ReportService {
                 movement.getMovementType(),
                 movement.getAmount(),
                 movement.getBalanceAfter(),
-                movement.getMovementDate()
+                movement.getMovementDate(),
+                movement.getStatus(),
+                movement.getVoidedAt(),
+                movement.getVoidReason(),
+                movement.getReversalMovementId(),
+                movement.getReplacementMovementId()
         );
     }
 }

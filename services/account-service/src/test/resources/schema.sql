@@ -30,6 +30,11 @@ CREATE TABLE IF NOT EXISTS movements (
   amount          NUMERIC(19,2) NOT NULL CHECK (amount > 0),
   balance_after   NUMERIC(19,2) NOT NULL CHECK (balance_after >= 0),
   created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
+  status          VARCHAR(20) NOT NULL DEFAULT 'ACTIVE',
+  voided_at       TIMESTAMPTZ NULL,
+  void_reason     VARCHAR(255) NULL,
+  reversal_movement_id UUID NULL,
+  replacement_movement_id UUID NULL,
   CONSTRAINT fk_movements_account
     FOREIGN KEY (account_number) REFERENCES accounts(account_number)
 );

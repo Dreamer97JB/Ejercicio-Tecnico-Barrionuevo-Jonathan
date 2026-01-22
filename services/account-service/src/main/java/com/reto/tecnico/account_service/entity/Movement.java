@@ -45,6 +45,22 @@ public class Movement {
     @Column(name = "created_at", nullable = false)
     private OffsetDateTime createdAt;
 
+    @Enumerated(EnumType.STRING)
+    @Column(name = "status", nullable = false)
+    private MovementStatus status;
+
+    @Column(name = "voided_at")
+    private OffsetDateTime voidedAt;
+
+    @Column(name = "void_reason")
+    private String voidReason;
+
+    @Column(name = "reversal_movement_id")
+    private UUID reversalMovementId;
+
+    @Column(name = "replacement_movement_id")
+    private UUID replacementMovementId;
+
     @PrePersist
     void onCreate() {
         OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC);
@@ -53,6 +69,9 @@ public class Movement {
         }
         if (createdAt == null) {
             createdAt = now;
+        }
+        if (status == null) {
+            status = MovementStatus.ACTIVE;
         }
     }
 }

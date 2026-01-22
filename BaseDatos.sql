@@ -1,5 +1,3 @@
--- 001-BaseDatos.sql
--- Inicialización completa: roles, DBs, timezone, ownership y permisos.
 
 -- =========================
 -- 1) ROLES
@@ -39,15 +37,15 @@ ALTER DATABASE account_db  SET timezone TO 'America/Guayaquil';
 -- =========================
 \connect customer_db
 
--- Seguridad recomendada: que "PUBLIC" no pueda crear cosas en schema public
 REVOKE ALL ON SCHEMA public FROM PUBLIC;
 
 -- Asegura owner del schema
 ALTER SCHEMA public OWNER TO customer_app;
 
--- Extensión (normalmente requiere superuser; por eso se hace como postgres)
+-- Extensión 
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
+-- Crear tabla (siempre)
 CREATE TABLE IF NOT EXISTS public.customers (
   cliente_id          UUID PRIMARY KEY,
   name                VARCHAR(120) NOT NULL,
@@ -63,7 +61,7 @@ CREATE TABLE IF NOT EXISTS public.customers (
   updated_at          TIMESTAMPTZ  NOT NULL DEFAULT now()
 );
 
--- Owner correcto (clave para evitar permission denied)
+
 ALTER TABLE public.customers OWNER TO customer_app;
 
 -- Permisos explícitos
@@ -71,9 +69,13 @@ GRANT CONNECT ON DATABASE customer_db TO customer_app;
 GRANT USAGE ON SCHEMA public TO customer_app;
 GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.customers TO customer_app;
 
--- Default privileges para futuras tablas (si algún día creas más)
+
+\connect customer_db customer_app
 ALTER DEFAULT PRIVILEGES IN SCHEMA public
-GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO customer_app;
+  GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO customer_app;
+
+
+\connect customer_db
 
 -- =========================
 -- 4) ACCOUNT_DB
@@ -117,6 +119,13 @@ CREATE TABLE IF NOT EXISTS public.movements (
   amount          NUMERIC(19,2) NOT NULL CHECK (amount > 0),
   balance_after   NUMERIC(19,2) NOT NULL CHECK (balance_after >= 0),
   created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
+
+  status          VARCHAR(20) NOT NULL DEFAULT 'ACTIVE', -- ACTIVE | VOIDED | SUPERSEDED
+  voided_at       TIMESTAMPTZ NULL,
+  void_reason     VARCHAR(255) NULL,
+  reversal_movement_id UUID NULL,
+  replacement_movement_id UUID NULL,
+
   CONSTRAINT fk_movements_account
     FOREIGN KEY (account_number) REFERENCES public.accounts(account_number)
 );
@@ -127,15 +136,20 @@ CREATE TABLE IF NOT EXISTS public.processed_events (
 );
 
 -- Owners correctos
-ALTER TABLE public.client_snapshot  OWNER TO account_app;
-ALTER TABLE public.accounts        OWNER TO account_app;
-ALTER TABLE public.movements       OWNER TO account_app;
-ALTER TABLE public.processed_events OWNER TO account_app;
+ALTER TABLE public.client_snapshot   OWNER TO account_app;
+ALTER TABLE public.accounts          OWNER TO account_app;
+ALTER TABLE public.movements         OWNER TO account_app;
+ALTER TABLE public.processed_events  OWNER TO account_app;
 
 -- Permisos
 GRANT CONNECT ON DATABASE account_db TO account_app;
 GRANT USAGE ON SCHEMA public TO account_app;
 GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO account_app;
 
+-- Default privileges para futuras tablas 
+\connect account_db account_app
 ALTER DEFAULT PRIVILEGES IN SCHEMA public
-GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO account_app;
+  GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO account_app;
+
+-- Volvemos a postgres por seguridad
+\connect account_db
