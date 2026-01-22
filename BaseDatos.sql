@@ -1,3 +1,5 @@
+-- 001-BaseDatos.sql
+-- Inicialización completa: roles, DBs, timezone, ownership y permisos.
 
 -- =========================
 -- 1) ROLES
@@ -35,17 +37,17 @@ ALTER DATABASE account_db  SET timezone TO 'America/Guayaquil';
 -- =========================
 -- 3) CUSTOMER_DB
 -- =========================
-\connect customer_db
+\connect customer_db postgres
 
+-- Seguridad recomendada: que "PUBLIC" no pueda crear cosas en schema public
 REVOKE ALL ON SCHEMA public FROM PUBLIC;
 
 -- Asegura owner del schema
 ALTER SCHEMA public OWNER TO customer_app;
 
--- Extensión 
+-- Extensión (normalmente requiere superuser; por eso se hace como postgres)
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
--- Crear tabla (siempre)
 CREATE TABLE IF NOT EXISTS public.customers (
   cliente_id          UUID PRIMARY KEY,
   name                VARCHAR(120) NOT NULL,
@@ -61,7 +63,7 @@ CREATE TABLE IF NOT EXISTS public.customers (
   updated_at          TIMESTAMPTZ  NOT NULL DEFAULT now()
 );
 
-
+-- Owner correcto (clave para evitar permission denied)
 ALTER TABLE public.customers OWNER TO customer_app;
 
 -- Permisos explícitos
@@ -69,18 +71,14 @@ GRANT CONNECT ON DATABASE customer_db TO customer_app;
 GRANT USAGE ON SCHEMA public TO customer_app;
 GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.customers TO customer_app;
 
-
-\connect customer_db customer_app
-ALTER DEFAULT PRIVILEGES IN SCHEMA public
-  GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO customer_app;
-
-
-\connect customer_db
+-- Default privileges (sin cambiar de usuario)
+ALTER DEFAULT PRIVILEGES FOR ROLE customer_app IN SCHEMA public
+GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO customer_app;
 
 -- =========================
 -- 4) ACCOUNT_DB
 -- =========================
-\connect account_db
+\connect account_db postgres
 
 REVOKE ALL ON SCHEMA public FROM PUBLIC;
 ALTER SCHEMA public OWNER TO account_app;
@@ -111,6 +109,7 @@ CREATE TABLE IF NOT EXISTS public.accounts (
     FOREIGN KEY (cliente_id) REFERENCES public.client_snapshot(cliente_id)
 );
 
+-- Movements: base + luego columnas de trazabilidad SOLO ADITIVAS vía ALTER
 CREATE TABLE IF NOT EXISTS public.movements (
   movement_id     UUID PRIMARY KEY,
   account_number  VARCHAR(30) NOT NULL,
@@ -119,17 +118,11 @@ CREATE TABLE IF NOT EXISTS public.movements (
   amount          NUMERIC(19,2) NOT NULL CHECK (amount > 0),
   balance_after   NUMERIC(19,2) NOT NULL CHECK (balance_after >= 0),
   created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
-
-  status          VARCHAR(20) NOT NULL DEFAULT 'ACTIVE', -- ACTIVE | VOIDED | SUPERSEDED
-  voided_at       TIMESTAMPTZ NULL,
-  void_reason     VARCHAR(255) NULL,
-  reversal_movement_id UUID NULL,
-  replacement_movement_id UUID NULL,
-
   CONSTRAINT fk_movements_account
     FOREIGN KEY (account_number) REFERENCES public.accounts(account_number)
 );
 
+-- Phase 5 (solo aditivo): asegura columnas aunque la tabla ya exista
 ALTER TABLE public.movements
   ADD COLUMN IF NOT EXISTS status VARCHAR(20) NOT NULL DEFAULT 'ACTIVE';
 ALTER TABLE public.movements
@@ -141,6 +134,7 @@ ALTER TABLE public.movements
 ALTER TABLE public.movements
   ADD COLUMN IF NOT EXISTS replacement_movement_id UUID NULL;
 
+-- Para idempotencia en consumidor RabbitMQ
 CREATE TABLE IF NOT EXISTS public.processed_events (
   event_id       UUID PRIMARY KEY,
   processed_at   TIMESTAMPTZ NOT NULL DEFAULT now()
@@ -157,10 +151,5 @@ GRANT CONNECT ON DATABASE account_db TO account_app;
 GRANT USAGE ON SCHEMA public TO account_app;
 GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO account_app;
 
--- Default privileges para futuras tablas 
-\connect account_db account_app
-ALTER DEFAULT PRIVILEGES IN SCHEMA public
-  GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO account_app;
-
--- Volvemos a postgres por seguridad
-\connect account_db
+ALTER DEFAULT PRIVILEGES FOR ROLE account_app IN SCHEMA public
+GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO account_app;
