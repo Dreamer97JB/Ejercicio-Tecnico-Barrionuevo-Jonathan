@@ -192,3 +192,105 @@ Recomendación: usar Testcontainers para Postgres + RabbitMQ si es viable, si no
 - customer-service: introduced Person mapped superclass and refactored Customer to extend it.
 - account-service: added movement traceability (status/void/rectify), reconciliation logic, and CRUD endpoints for /movimientos.
 - database: added additive ALTER TABLE patch for movements traceability columns in BaseDatos.sql.
+
+## Test Audit (2026-01-22)
+
+### How to run tests
+- customer-service: `cd services/customer-service && ./mvnw test`
+- account-service: `cd services/account-service && ./mvnw test`
+- No root aggregator POM detected; run per service.
+
+### Evidence (Surefire reports)
+- customer-service: `services/customer-service/target/surefire-reports/com.reto.tecnico.customer_service.CustomerServiceApplicationTests.txt`
+  - LastWriteTime: 22/01/2026 0:35:47
+  - Tests run: 2, Failures: 0, Errors: 0, Skipped: 0
+- customer-service: `services/customer-service/target/surefire-reports/com.reto.tecnico.customer_service.CustomerServiceIntegrationTests.txt`
+  - LastWriteTime: 22/01/2026 0:36:10
+  - Tests run: 3, Failures: 0, Errors: 0, Skipped: 0
+- account-service: `services/account-service/target/surefire-reports/com.reto.tecnico.account_service.AccountServiceApplicationTests.txt`
+  - LastWriteTime: 22/01/2026 1:03:52
+  - Tests run: 9, Failures: 0, Errors: 0, Skipped: 0
+
+### customer-service
+- `services/customer-service/src/test/java/com/reto/tecnico/customer_service/CustomerServiceApplicationTests.java`
+  - Type: UNIT (MockitoExtension, mocks, no Spring context/Testcontainers).
+  - Dependencies: Mockito, PasswordHasher (BCrypt), Bean Validation Validator.
+  - Covers:
+    - `createHashesPasswordAndSetsActive`: hashes password, sets active, publishes event (mocked).
+    - `createRequestRejectsNegativeAge`: validation rejects negative age.
+  - Fixtures: CreateCustomerRequest with `ID-123`, `ID-456`, password `secret`.
+
+- `services/customer-service/src/test/java/com/reto/tecnico/customer_service/CustomerServiceIntegrationTests.java`
+  - Type: INTEGRATION (@SpringBootTest, @AutoConfigureMockMvc, @Testcontainers).
+  - Dependencies: MockMvc, PostgreSQLContainer (postgres:16-alpine), RabbitMQContainer (rabbitmq:3.13-alpine),
+    RabbitTemplate/AmqpAdmin, Awaitility, CustomerRepository.
+  - Endpoints/routes:
+    - POST `/clientes` with JSON body: name/gender/age/identificacion/tipoIdentificacion/address/phone/password.
+  - Covers:
+    - Create customer: 201, active=true, response hides password hash, DB hash matches.
+    - Duplicate identificacion: 409.
+    - Event published to exchange `customer.events` with routing `customer.created`; validates JSON payload.
+  - Fixtures: identificacion `ID-100`, `ID-200`, `ID-300`; password `secret`.
+
+### account-service
+- `services/account-service/src/test/java/com/reto/tecnico/account_service/AccountServiceApplicationTests.java`
+  - Type: INTEGRATION (@SpringBootTest, @AutoConfigureMockMvc, @Testcontainers).
+  - Dependencies: MockMvc, PostgreSQLContainer (postgres:16-alpine), RabbitMQContainer (rabbitmq:3.13-alpine),
+    RabbitTemplate, Awaitility, repositories (ClientSnapshot/Account/Movement/ProcessedEvent).
+  - Endpoints/routes:
+    - POST `/movimientos` (CreateMovementRequest).
+    - GET `/movimientos` (query by accountNumber).
+    - PUT `/movimientos/{movementId}` (UpdateMovementRequest).
+    - DELETE `/movimientos/{movementId}` (VoidMovementRequest).
+    - GET `/reportes` with `fechaDesde`, `fechaHasta`, `identificacion`.
+  - Covers:
+    - Customer event consumption updates `client_snapshot` and `processed_events`.
+    - Idempotent event processing (event published twice).
+    - POST /movimientos RETIRO insufficient funds -> 409 + message.
+    - POST /movimientos DEPOSITO updates balance and persists movement.
+    - GET /reportes filters movements by date range and identificacion.
+    - GET /movimientos list returns ACTIVE movements and updated balances.
+    - DELETE /movimientos voids deposit, creates reversal, reconciles balance.
+    - PUT /movimientos rectifies withdrawal with reversal + replacement, reconciles balance.
+    - DELETE /movimientos fails with 422 when reconciliation would go negative; DB unchanged.
+  - Fixtures:
+    - Snapshot IDs: `ID-300`..`ID-900`.
+    - Accounts: `ACC-300`..`ACC-900`.
+    - Movements: DEPOSITO/RETIRO with amounts 10/20/25/30/50/60.
+    - Manual Movement seed for report date range (2026-01-15 vs 2026-02-01).
+
+### Totals
+- Test classes: 3
+- Tests: 14
+- Unit: 1 class / 2 tests
+- Integration: 2 classes / 12 tests
+
+### Reto requirements vs current status
+- F5 (2 unit tests of endpoints, one must be Cliente): FAIL
+  - Evidence: only unit test is `CustomerServiceApplicationTests` (service-level, Mockito), no @WebMvcTest or controller unit tests.
+- F6 (1 integration test): PASS
+  - Evidence: `CustomerServiceIntegrationTests` and `AccountServiceApplicationTests` are @SpringBootTest + Testcontainers.
+
+## F5 Fix
+- Added WebMvc unit tests (no DB/Testcontainers):
+  - `services/customer-service/src/test/java/com/reto/tecnico/customer_service/controller/CustomerControllerWebMvcTest.java`
+    - Endpoint: POST `/clientes`
+    - Verifies: 201, response fields, service called with expected `CreateCustomerRequest`.
+  - `services/account-service/src/test/java/com/reto/tecnico/account_service/controller/AccountControllerWebMvcTest.java`
+    - Endpoint: POST `/cuentas`
+    - Verifies: 201, response fields, service called with expected `CreateAccountRequest`.
+- Run only these tests:
+  - customer-service: `cd services/customer-service && ./mvnw -Dtest=CustomerControllerWebMvcTest test`
+  - account-service: `cd services/account-service && ./mvnw -Dtest=AccountControllerWebMvcTest test`
+- Status:
+  - F5: PASS (2 endpoint unit tests, one for Cliente).
+  - F6: PASS (integration tests exist), but full `mvn test` failed locally due to missing Docker for Testcontainers.
+
+## Postman
+- Import: in Postman, click Import and select `postman_collection.json` from repo root.
+- Variables:
+  - `baseCustomer` = `http://localhost:8081`
+  - `baseAccount` = `http://localhost:8082`
+- Requests included:
+  - customer-service: POST/GET/PUT/DELETE `/clientes`, GET by identificacion.
+  - account-service: POST/GET/PUT/DELETE `/cuentas`, POST `/movimientos`, GET `/reportes`.
