@@ -1,0 +1,162 @@
+{
+  "info": {
+    "name": "Reto Tecnico - Sofka",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "baseCustomer",
+      "value": "http://localhost:8081"
+    },
+    {
+      "key": "baseAccount",
+      "value": "http://localhost:8082"
+    }
+  ],
+  "item": [
+    {
+      "name": "customer-service",
+      "item": [
+        {
+          "name": "POST /clientes",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Test User\",\n  \"gender\": \"M\",\n  \"age\": 30,\n  \"identificacion\": \"ID-100\",\n  \"tipoIdentificacion\": \"CC\",\n  \"address\": \"Street 123\",\n  \"phone\": \"555-111\",\n  \"password\": \"secret\"\n}"
+            },
+            "url": "{{baseCustomer}}/clientes"
+          }
+        },
+        {
+          "name": "GET /clientes?identificacion=",
+          "request": {
+            "method": "GET",
+            "url": "{{baseCustomer}}/clientes?identificacion=ID-100"
+          }
+        },
+        {
+          "name": "GET /clientes/{clienteId}",
+          "request": {
+            "method": "GET",
+            "url": "{{baseCustomer}}/clientes/00000000-0000-0000-0000-000000000001"
+          }
+        },
+        {
+          "name": "PUT /clientes/{clienteId}",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Test User Updated\",\n  \"gender\": \"M\",\n  \"age\": 31,\n  \"identificacion\": \"ID-100\",\n  \"tipoIdentificacion\": \"CC\",\n  \"address\": \"Street 456\",\n  \"phone\": \"555-222\",\n  \"password\": \"newsecret\"\n}"
+            },
+            "url": "{{baseCustomer}}/clientes/00000000-0000-0000-0000-000000000001"
+          }
+        },
+        {
+          "name": "DELETE /clientes/{clienteId}",
+          "request": {
+            "method": "DELETE",
+            "url": "{{baseCustomer}}/clientes/00000000-0000-0000-0000-000000000001"
+          }
+        }
+      ]
+    },
+    {
+      "name": "account-service",
+      "item": [
+        {
+          "name": "POST /cuentas",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"accountNumber\": \"ACC-1001\",\n  \"accountType\": \"AHORROS\",\n  \"initialBalance\": 100.00,\n  \"clienteId\": \"00000000-0000-0000-0000-000000000001\"\n}"
+            },
+            "url": "{{baseAccount}}/cuentas"
+          }
+        },
+        {
+          "name": "GET /cuentas",
+          "request": {
+            "method": "GET",
+            "url": "{{baseAccount}}/cuentas?clienteId=00000000-0000-0000-0000-000000000001"
+          }
+        },
+        {
+          "name": "GET /cuentas/{accountNumber}",
+          "request": {
+            "method": "GET",
+            "url": "{{baseAccount}}/cuentas/ACC-1001"
+          }
+        },
+        {
+          "name": "PUT /cuentas/{accountNumber}",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"accountType\": \"CORRIENTE\"\n}"
+            },
+            "url": "{{baseAccount}}/cuentas/ACC-1001"
+          }
+        },
+        {
+          "name": "DELETE /cuentas/{accountNumber}",
+          "request": {
+            "method": "DELETE",
+            "url": "{{baseAccount}}/cuentas/ACC-1001"
+          }
+        },
+        {
+          "name": "POST /movimientos",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"accountNumber\": \"ACC-1001\",\n  \"movementType\": \"DEPOSITO\",\n  \"amount\": 50.00\n}"
+            },
+            "url": "{{baseAccount}}/movimientos"
+          }
+        },
+        {
+          "name": "GET /reportes",
+          "request": {
+            "method": "GET",
+            "url": "{{baseAccount}}/reportes?fechaDesde=2026-01-01&fechaHasta=2026-01-31&identificacion=ID-100"
+          }
+        }
+      ]
+    }
+  ]
+}
